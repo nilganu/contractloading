@@ -1,0 +1,61 @@
+{
+  "supplier": "FLY 4 YOU SRL",
+  "currency": "EUR",
+  "rateType": "Per Person Per Day",
+  "rooms": [
+    "Double Room",
+    "Superior Room",
+    "Family Room"
+  ],
+  "periods": [
+    {
+      "startDate": "2026-04-01",
+      "endDate": "2026-06-13"
+    },
+    {
+      "startDate": "2026-09-15",
+      "endDate": "2026-10-31"
+    },
+    {
+      "startDate": "2026-09-01",
+      "endDate": "2026-09-14"
+    },
+    {
+      "startDate": "2026-06-14",
+      "endDate": "2026-08-31"
+    }
+  ],
+  "mealPlans": [
+    "Bed & Breakfast",
+    "Half Board"
+  ],
+  "dynamicChildColumns": [
+    {
+      "key": "CHD1(0.1-11.99)",
+      "label": "CHD1(0.1-11.99)",
+      "ageFrom": 0.1,
+      "ageTo": 11.99,
+      "ageLabel": ">1st child 0,1 - 11,99",
+      "childPosition": "first_child",
+      "valueType": "amount"
+    },
+    {
+      "key": "CHD2(2-11.99)",
+      "label": "CHD2(2-11.99)",
+      "ageFrom": 2,
+      "ageTo": 11.99,
+      "ageLabel": ">2nd child 2,0 - 11,99",
+      "childPosition": "second_child",
+      "valueType": "amount"
+    },
+    {
+      "key": "CHD3(2-11.99)",
+      "label": "CHD3(2-11.99)",
+      "ageFrom": 2,
+      "ageTo": 11.99,
+      "ageLabel": ">3rd child 2,0 - 11,99",
+      "childPosition": "third_child",
+      "valueType": "not_applicable"
+    }
+  ]
+}

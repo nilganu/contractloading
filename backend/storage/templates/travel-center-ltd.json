@@ -1,0 +1,65 @@
+{
+  "supplier": "Travel Center Ltd",
+  "currency": "EUR",
+  "rateType": "Per Person Per Night",
+  "rooms": [
+    "Prestige Bungalow Sea View"
+  ],
+  "periods": [
+    {
+      "startDate": "2025-05-01",
+      "endDate": "2025-05-15"
+    },
+    {
+      "startDate": "2025-05-16",
+      "endDate": "2025-05-22"
+    },
+    {
+      "startDate": "2025-05-23",
+      "endDate": "2025-06-30"
+    },
+    {
+      "startDate": "2025-07-01",
+      "endDate": "2025-07-31"
+    },
+    {
+      "startDate": "2025-08-01",
+      "endDate": "2025-08-25"
+    },
+    {
+      "startDate": "2025-08-26",
+      "endDate": "2025-09-30"
+    },
+    {
+      "startDate": "2025-10-01",
+      "endDate": "2025-10-15"
+    },
+    {
+      "startDate": "2025-10-16",
+      "endDate": "2025-10-28"
+    }
+  ],
+  "mealPlans": [
+    "All Inclusive"
+  ],
+  "dynamicChildColumns": [
+    {
+      "key": "CHD1(2-11.99)",
+      "label": "CHD1(2-11.99)",
+      "ageFrom": 2,
+      "ageTo": 11.99,
+      "ageLabel": "Children 2-11.99",
+      "childPosition": "first_child",
+      "valueType": "amount"
+    },
+    {
+      "key": "CHD2(2-11.99)",
+      "label": "CHD2(2-11.99)",
+      "ageFrom": 2,
+      "ageTo": 11.99,
+      "ageLabel": "Children 2-11.99",
+      "childPosition": "second_child",
+      "valueType": "amount"
+    }
+  ]
+}

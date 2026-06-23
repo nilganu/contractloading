@@ -1,0 +1,41 @@
+{
+  "supplier": "TestCo",
+  "currency": "EUR",
+  "rateType": null,
+  "rooms": [
+    "Standard Double"
+  ],
+  "periods": [
+    {
+      "startDate": "2025-05-01",
+      "endDate": "2025-10-31"
+    },
+    {
+      "startDate": "2025-11-01",
+      "endDate": "2026-03-31"
+    }
+  ],
+  "mealPlans": [
+    "Bed & Breakfast"
+  ],
+  "dynamicChildColumns": [
+    {
+      "key": "CHD(0-1.99)",
+      "label": "CHD(0-1.99)",
+      "ageFrom": 0.0,
+      "ageTo": 1.99,
+      "ageLabel": null,
+      "childPosition": null,
+      "valueType": "amount"
+    },
+    {
+      "key": "CHD(2-11.99)",
+      "label": "CHD(2-11.99)",
+      "ageFrom": 2.0,
+      "ageTo": 11.99,
+      "ageLabel": null,
+      "childPosition": null,
+      "valueType": "amount"
+    }
+  ]
+}

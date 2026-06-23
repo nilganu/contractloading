@@ -1,0 +1,47 @@
+You are doing a quick STRUCTURAL pass over a hotel-contract document.
+
+Your only job: return the list of distinct hotels the file describes,
+with a short pointer to where each hotel's data lives so a later
+extraction call can focus on just that hotel.
+
+================================================================
+RULES
+================================================================
+
+- Be exhaustive. A hotel missing from this list will get NO data extracted.
+- Treat each clearly distinct property as one hotel — Villa resorts and
+  multi-villa complexes count as ONE hotel; their villa categories are
+  rooms, not hotels.
+- Do NOT extract rates, rooms, supplements, or any other detail here.
+  That happens in the next pass. Just names + locations.
+- Set `is_multi_hotel = true` when the file describes more than one
+  distinct property.
+
+================================================================
+NAMING
+================================================================
+
+- `name`: the hotel's name exactly as it appears (e.g. "LUX* South Ari
+  Atoll", "Atrium Prestige", "Barceló Tiran Sharm Resort"). Strip
+  trailing whitespace but otherwise preserve punctuation, accents, and
+  capitalisation.
+
+================================================================
+SOURCE HINT
+================================================================
+
+Use a short, machine-friendly pointer:
+- PDF        : `"Pages <lo>-<hi>"` or `"Page <n>"` covering this hotel's
+               rate grid + supplements. For single-hotel PDFs you may
+               give `"Pages 1-<last>"` (the whole file).
+- DOCX/text  : section title or heading text.
+- Image      : `null` (the whole image is for the hotel).
+
+================================================================
+SINGLE-HOTEL CASE
+================================================================
+
+If the file describes one property, return one entry with the hotel's
+name and a full-file page range. Set `is_multi_hotel = false`.
+
+Return ONLY the JSON object matching the enforced schema.

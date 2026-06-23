@@ -1,0 +1,12 @@
+{
+  "supplierDefault": "FLY 4 YOU SRL",
+  "countryDefault": "GR",
+  "cityAreaDefault": "Nikiti",
+  "currencyDefault": "EUR",
+  "statusDefault": "Open",
+  "checkInDefault": "14:00",
+  "checkOutDefault": "12:00",
+  "childColumnMode": "dynamic_review",
+  "preserveChildPositions": true,
+  "extractionMode": "text_only"
+}

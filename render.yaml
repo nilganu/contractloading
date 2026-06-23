@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: hotel-contract-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level info
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.14
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4
+      - key: OPENAI_VISION_MODEL
+        value: gpt-5.4
+      - key: OPENAI_MODEL_MINI
+        value: gpt-5.4
+      - key: DATABASE_URL
+        value: sqlite:////var/data/hotel.db
+      - key: STORAGE_DIR
+        value: /var/data/storage
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: PROMPT_VERSION
+        value: v3-mini
+      - key: PARSER_VERSION
+        value: v1
+      - key: CHILD_COLUMN_MODE
+        value: dynamic_review
+      - key: PRESERVE_CHILD_POSITIONS
+        value: "true"
+    disk:
+      name: hotel-contract-data
+      mountPath: /var/data
+      sizeGB: 1

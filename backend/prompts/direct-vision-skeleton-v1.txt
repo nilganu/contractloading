@@ -1,0 +1,213 @@
+You are analyzing one or more pages of a hotel contract IMAGE.
+
+Your ONLY job in this call is to identify the SKELETON of the rate matrix
+visible on the page(s). Do not extract prices, do not produce hotel rows,
+do not write notes. Just describe the dimensions.
+
+LAYOUT PATTERNS — recognize which one applies before classifying columns.
+A hotel contract page can use one of several rate-table shapes. Capture
+which pattern you see by setting `layoutPattern` in the output.
+
+  "board_stacked"     — Period column on the left, board column (BB/HB/…),
+                        rooms across the top. Cells = per-person rate.
+                        (Eg an Acrotel-style PDF.)
+
+  "supplement_column" — Period column on the left, then a base-room price
+                        column followed by supplement columns (SGL supp,
+                        TPL reduction, child columns, room upgrade
+                        columns, meal-upgrade columns, notes columns).
+                        Single board per sheet (basic treatment).
+                        (Eg a Volonline-style Excel sheet.)
+
+  "period_column"     — Rooms DOWN the left (one room per row), periods
+                        ACROSS the top (one column per period). The rate
+                        type is "Per Room Per Night" (each cell is a
+                        single per-room rate; same price applies for any
+                        occupancy up to the room's Max Occupancy). A
+                        "Max Occupancy" column usually sits next to the
+                        room-name column.
+                        (Eg a Salterra-style addendum PDF.)
+
+For "period_column":
+  - For each room row × period column, the same dollar amount fills DBL
+    AND (if max occupancy permits) QDP / TPL — there is no SGL/DBL
+    distinction because the rate is per-room not per-person.
+  - The Max Occupancy column gives the room's Max Pax (and usually Max
+    Adult equals it when no separate child policy is stated).
+  - There is rarely a separate child policy; rate_type stays "Per Room
+    Per Night" and child columns are typically absent.
+  - Capture each room row as a `roomTypes` entry and each period column
+    as a `periods` entry. Then the fill stage will emit
+    rooms × periods Hotel rows.
+
+INSTRUCTIONS
+- Identify the hotel name visible on the page(s), or null if not present.
+
+- Identify EVERY distinct date period covered by the rate table.
+  * If a single "PERIOD" cell visually contains TWO or more stacked date
+    ranges (e.g. "01.04.2026 - 13.06.2026" stacked above
+    "15.09.2026 - 31.10.2026" inside one cell, with NO horizontal divider
+    between them), output BOTH as separate period entries AND assign them
+    the SAME "priceRowGroup" id (eg "G1"). They are different stay-date
+    windows but they share ONE row of prices in the table.
+  * Periods that have their own dedicated price row get their own unique
+    priceRowGroup id (eg "G2", "G3").
+  * Always return ISO-format date pairs.
+
+- Identify every distinct meal-plan / board code in the rate table (BB,
+  HB, FB, AI, RO, UAI, ...). Use the actual plain board codes that appear.
+
+- Identify every distinct ROOM TYPE (accommodation unit) the contract
+  offers. A "room type" is whatever the contract sells as a bookable unit —
+  it is NOT always called "Room". Resorts often name units "Villa",
+  "Pavilion", "Bungalow", "Suite", "Studio", "Chalet", "Tent", "Cabana",
+  "Residence", "Lodge", etc. (e.g. "Beach Pavilion", "Water Villa",
+  "Family Lagoon Pavilion", "Double Room", "Superior Room"). Treat every
+  such named category as a roomTypes entry and put its full name in
+  Room Name. The hotelName is the overall PROPERTY/RESORT name (e.g.
+  "LUX* South Ari Atoll") — never an individual villa/room category.
+  The truthful source for room types is the "Occupancies" / "Room Types" /
+  "Max Occupancy" table when present, otherwise the row labels of the rate
+  grid (e.g. a "RATE / VILLA / NIGHT" grid lists each villa down the rows).
+  The rate table may have MORE columns than there are room types (e.g.
+  "Double for Single" and "Double" are two columns for the SAME "Double
+  Room"); do not list those occupancy variants as separate room types.
+  * For each room, also extract MaxChildren from the occupancy table — it
+    tells you whether children are allowed in that room AT ALL.
+
+- For each room type, list the rate-table column headers that supply its
+  prices. Indicate which column fills SGL, DBL, TPL, or QDP.
+
+- Detect the rate type from the table header / surrounding text:
+  "Per Person Per Night", "Per Person Per Day", or "Per Room Per Night".
+
+- Detect the currency: EUR, USD, GBP, AED, EGP, or null if not visible.
+
+- Look for an "EXTRA ADULT" / "extra bed (adult)" / "additional adult"
+  row in the rate table. This row tells you the per-room price (or
+  discount) for adding a third/fourth adult on an extra bed. Capture it
+  as `extraAdultPolicy.perRoomLiteral[<room name>]` with the LITERAL
+  cell text (e.g. "-30%", "free", "n/a", "20 EUR"). Many contracts call
+  this "Extra Adult (extra bed) over 12yo" or similar; treat it
+  separately from child policies. Returns null/empty if no such row
+  exists.
+
+- For each child-policy row visible (e.g. ">1st child 0,1-11,99"), output
+  age-from, age-to, child position (first_child / second_child /
+  third_child), and the LITERAL discount/charge text seen for each room
+  column (e.g. "free", "-50%", "n/a"). DO NOT convert to numbers yet.
+
+  AGE PRECISION: When a contract writes "0,1-11,99" or "0.1 - 11.99",
+  capture the EXACT decimal — ageFrom = 0.1 (NOT 0), ageTo = 11.99
+  (NOT 11 or 12). When the contract writes "2,0-11,99", ageFrom = 2
+  (it's 2.0 = 2). Read the comma as a decimal separator (European
+  convention). The dynamic column key downstream becomes
+  CHD<pos>(<ageFrom>-<ageTo>) using these exact values, so precision
+  matters.
+
+  CRITICAL: if a room's MaxChildren is 0 in the occupancy table, that
+  room cannot accept children — its perRoomLiteral entry for EVERY child
+  position MUST be "n/a", regardless of what the rate table shows in the
+  matching cell. The occupancy table is authoritative.
+
+CRITICAL — hotel address vs supplier address:
+The contract usually mentions TWO addresses:
+- The HOTEL'S address (where guests stay). Often phrased as "based at <city>
+  in <region>, <country>" or "the hotel is located at...". The HOTEL is the
+  subject of the rates.
+- The SUPPLIER / agent / tour-operator's address (the buyer's business
+  location). Often phrased as "second party company ... based at City <X>,
+  Country <Y>" or "tax office of <city>". This is where the agent lives,
+  NOT where the hotel is.
+
+The Moonstride row's "Country Code", "City / Area" and
+"State / Province / Region" fields are ALL for the HOTEL. The "Supplier"
+field is for the agent's company NAME only — no agent address fields are
+exported. Put hotel address into hotelAddress.* and supplier name into
+supplier. DO NOT cross-wire them.
+
+OUTPUT — return a single JSON object (no markdown, no code fences):
+
+{
+  "layoutPattern": "board_stacked"|"supplement_column"|"period_column"|"unknown",
+  "hotelName": string|null,
+  "supplier": string|null,
+  "hotelAddress": {
+    "addressLine1": string|null,
+    "cityOrArea": string|null,
+    "stateOrRegion": string|null,
+    "countryCode": string|null,
+    "postalCode": string|null,
+    "phone": string|null,
+    "email": string|null,
+    "website": string|null
+  },
+  "currency": string|null,
+  "rateType": string|null,
+  "periods": [
+    {
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD",
+      "originalLabel": string,
+      "priceRowGroup": "G1"|"G2"|...
+    }
+  ],
+  "mealPlans": [string],
+  "roomTypes": [
+    {
+      "name": string,
+      "minAdult": number|null,
+      "maxAdult": number|null,
+      "maxPax": number|null,
+      "maxChildren": number|null,
+      "rateColumns": {
+        "SGL": string|null,
+        "DBL": string|null,
+        "TPL": string|null,
+        "QDP": string|null
+      }
+    }
+  ],
+  "childPolicies": [
+    {
+      "position": "first_child"|"second_child"|"third_child"|null,
+      "ageFrom": number|null,
+      "ageTo": number|null,
+      "ageLabel": string|null,
+      "perRoomLiteral": {
+        "<room name>": string
+      }
+    }
+  ],
+  "extraAdultPolicy": {
+    "ageLabel": string|null,
+    "perRoomLiteral": { "<room name>": string }
+  }|null
+}
+
+For "supplier": look for a counter-party / buyer / agent company name in
+the contract header. Common patterns:
+  * "second party company with the name X" → supplier = X
+  * "The undersigned X, hereinafter referred to as the Tour Operator..."
+  * "Buyer: X" / "Travel Agent: X" / "On behalf of X"
+  * A separate "company details" / "agent details" / "tour operator"
+    block that names a company (often with VAT/tax-ref number).
+The supplier is NOT the hotel itself, NOT the chain, NOT the management
+company. Return the raw company name as printed (e.g. "FLY 4 YOU SRL").
+Return null only if no buyer/agent name is visible.
+
+For "hotelAddress": look for where the hotel itself sits.
+  * "based at <city> in <region>, <country>" → cityOrArea/stateOrRegion/countryCode
+  * "The hotel is located at..."
+  * Address block on the contract page near the hotel name.
+For countryCode use ISO 3166-1 alpha-2 (GR for Greece, EG for Egypt, IT
+for Italy, ES for Spain, etc). If only the country name is visible,
+translate to the alpha-2 code. If unsure, return null and let the upload
+default fill it.
+NEVER use the supplier's country/city for hotelAddress.
+
+VERIFY BEFORE RETURNING:
+- periods, mealPlans, roomTypes are all NON-EMPTY arrays if the page has a
+  rate table.
+- A period cell with two stacked ranges produces TWO entries in periods.
+- No invented data — only what's visible.

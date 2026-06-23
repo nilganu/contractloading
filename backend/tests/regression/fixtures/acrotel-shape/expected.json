@@ -1,0 +1,262 @@
+{
+  "workbookSummary": {
+    "sourceFile": "input.xlsx",
+    "inputFormat": "xlsx",
+    "sheetsOrPagesProcessed": [
+      "Sheet:Acrotel Lily Ann Village"
+    ],
+    "indexSheets": [],
+    "hotelSheets": [
+      "Sheet:Acrotel Lily Ann Village"
+    ],
+    "ignoredSheetsOrPages": [],
+    "overallConfidence": 0.35
+  },
+  "dynamicColumns": {
+    "childColumns": []
+  },
+  "hotels": [
+    {
+      "hotelName": "Acrotel Lily Ann Village",
+      "sourceSheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "metadata": {
+        "hotelName": "Acrotel Lily Ann Village",
+        "supplier": "FLY 4 YOU SRL",
+        "countryCode": "GR",
+        "cityOrArea": "Nikiti",
+        "currency": "EUR"
+      },
+      "rateBlocks": [
+        {
+          "title": "Block 1",
+          "ratePlan": "Contract",
+          "season": null,
+          "startDate": "2026-04-01",
+          "endDate": "2026-06-13",
+          "sourceRange": "input.xlsx | Acrotel Lily Ann Village!A1:G10"
+        },
+        {
+          "title": "Block 2",
+          "ratePlan": "Contract",
+          "season": null,
+          "startDate": "2026-06-14",
+          "endDate": "2026-08-31",
+          "sourceRange": "input.xlsx | Acrotel Lily Ann Village!A1:G10"
+        }
+      ],
+      "roomTypes": [],
+      "childPolicies": []
+    }
+  ],
+  "hotelRows": [
+    {
+      "id": "row_c26b1575",
+      "sourceSheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "Hotel Name": "Acrotel Lily Ann Village",
+      "Supplier": "FLY 4 YOU SRL",
+      "Star Rating": null,
+      "Short Description": null,
+      "Address Line 1": null,
+      "Address Line 2": null,
+      "Address Line 3": null,
+      "Address Line 4": null,
+      "Postal Code": null,
+      "Country Code ": "GR",
+      "State / Province / Region": null,
+      "City / Area": "Nikiti",
+      "Phone Number": null,
+      "Email Address": null,
+      "Hotel Website": null,
+      "Latitude": null,
+      "Longitude": null,
+      "Check-In": "14:00",
+      "Check-Out": "12:00",
+      "Currency": "EUR",
+      "Rate Type": null,
+      "Room Name": null,
+      "Min Adult": null,
+      "Max Adult": null,
+      "Max Pax": null,
+      "Season": null,
+      "Start Date": "2026-04-01",
+      "End Date": "2026-06-13",
+      "Days": "1234567",
+      "Min Stay": null,
+      "Rate Plan": "Contract",
+      "Meal Plan": "Bed & Breakfast",
+      "Status": "Open",
+      "Booking Limit": null,
+      "Release Period": null,
+      "Customer Price Currency": "EUR",
+      "Add Charge Type": null,
+      "Add Charge Value": null,
+      "Charge": null,
+      "SGL": null,
+      "DBL": null,
+      "TPL": null,
+      "QDP": null,
+      "Extra Bed": null,
+      "dynamicChildValues": {},
+      "SUPP-HB-ADULT": null,
+      "SUPP-HB-CHILD": null,
+      "SUPP-AI-ADULT": null,
+      "SUPP-AI-CHILD": null,
+      "_childPolicyDetails": [],
+      "_sourceRefs": [
+        "input.xlsx | Acrotel Lily Ann Village!A1:G10"
+      ],
+      "_confidence": 0.35,
+      "_warnings": [
+        "Stub extractor produced this row from coarse pattern matching — review every field."
+      ],
+      "_cellMeta": {},
+      "_reviewState": "auto"
+    },
+    {
+      "id": "row_08f15450",
+      "sourceSheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "Hotel Name": "Acrotel Lily Ann Village",
+      "Supplier": "FLY 4 YOU SRL",
+      "Star Rating": null,
+      "Short Description": null,
+      "Address Line 1": null,
+      "Address Line 2": null,
+      "Address Line 3": null,
+      "Address Line 4": null,
+      "Postal Code": null,
+      "Country Code ": "GR",
+      "State / Province / Region": null,
+      "City / Area": "Nikiti",
+      "Phone Number": null,
+      "Email Address": null,
+      "Hotel Website": null,
+      "Latitude": null,
+      "Longitude": null,
+      "Check-In": "14:00",
+      "Check-Out": "12:00",
+      "Currency": "EUR",
+      "Rate Type": null,
+      "Room Name": null,
+      "Min Adult": null,
+      "Max Adult": null,
+      "Max Pax": null,
+      "Season": null,
+      "Start Date": "2026-06-14",
+      "End Date": "2026-08-31",
+      "Days": "1234567",
+      "Min Stay": null,
+      "Rate Plan": "Contract",
+      "Meal Plan": "Bed & Breakfast",
+      "Status": "Open",
+      "Booking Limit": null,
+      "Release Period": null,
+      "Customer Price Currency": "EUR",
+      "Add Charge Type": null,
+      "Add Charge Value": null,
+      "Charge": null,
+      "SGL": null,
+      "DBL": null,
+      "TPL": null,
+      "QDP": null,
+      "Extra Bed": null,
+      "dynamicChildValues": {},
+      "SUPP-HB-ADULT": null,
+      "SUPP-HB-CHILD": null,
+      "SUPP-AI-ADULT": null,
+      "SUPP-AI-CHILD": null,
+      "_childPolicyDetails": [],
+      "_sourceRefs": [
+        "input.xlsx | Acrotel Lily Ann Village!A1:G10"
+      ],
+      "_confidence": 0.35,
+      "_warnings": [
+        "Stub extractor produced this row from coarse pattern matching — review every field."
+      ],
+      "_cellMeta": {},
+      "_reviewState": "auto"
+    }
+  ],
+  "extractionNotes": [
+    {
+      "id": "note_f80cb390",
+      "Source File": "input.xlsx",
+      "Page": "Sheet:Acrotel Lily Ann Village",
+      "Category": "Cancellation",
+      "Note": "31/08/2026\tDouble Room\t63\t130\t0\t31.5 10\tCancellation: 14 days 0% fees, 13-7 days 30% fees, 6-3 days 50% fees, 2-0 days 100% fees",
+      "_sourceRefs": [
+        "input.xlsx | Acrotel Lily Ann Village!A1:G10"
+      ],
+      "_confidence": 0.4,
+      "hotelName": "Acrotel Lily Ann Village",
+      "linkedHotelRowId": null
+    }
+  ],
+  "validationIssues": [
+    {
+      "id": "issue_42908cad",
+      "severity": "error",
+      "message": "Required field missing: Room Name",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_c26b1575",
+      "field": "Room Name",
+      "quickFixType": null
+    },
+    {
+      "id": "issue_cfbefe52",
+      "severity": "warning",
+      "message": "Rate Type missing",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_c26b1575",
+      "field": "Rate Type",
+      "quickFixType": null
+    },
+    {
+      "id": "issue_506fb75e",
+      "severity": "warning",
+      "message": "Low confidence (0.35)",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_c26b1575",
+      "field": null,
+      "quickFixType": null
+    },
+    {
+      "id": "issue_09608fa2",
+      "severity": "error",
+      "message": "Required field missing: Room Name",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_08f15450",
+      "field": "Room Name",
+      "quickFixType": null
+    },
+    {
+      "id": "issue_d264d388",
+      "severity": "warning",
+      "message": "Rate Type missing",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_08f15450",
+      "field": "Rate Type",
+      "quickFixType": null
+    },
+    {
+      "id": "issue_04119ff2",
+      "severity": "warning",
+      "message": "Low confidence (0.35)",
+      "sourceRef": null,
+      "hotelName": "Acrotel Lily Ann Village",
+      "sheetOrPage": "Sheet:Acrotel Lily Ann Village",
+      "hotelRowId": "row_08f15450",
+      "field": null,
+      "quickFixType": null
+    }
+  ]
+}

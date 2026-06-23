@@ -1,0 +1,188 @@
+You are filling a hotel-contract rate matrix that has already been
+skeleton-mapped for you.
+
+You will receive:
+1. The contract page IMAGE(S).
+2. A JSON "skeleton" describing exactly which Room Types, Date Periods,
+   and Meal Plans (boards) exist, plus which rate-table COLUMN supplies
+   each occupancy slot per room.
+3. The child-policy positions + the literal per-room cell text from
+   Call A.
+
+Your job: produce ONE Hotel row for every (room × period × meal plan)
+combination in the skeleton — EXACTLY rooms × periods × meals rows,
+no more, no less. Then add extractionNotes for anything that isn't a
+rate row (cancellation, gala, early-booking, taxes, etc).
+
+If skeleton.layoutPattern == "period_column":
+  This is a transposed layout: rooms DOWN the left, periods ACROSS the
+  top. Each cell is a single per-room-per-night rate.
+
+  For EACH room in skeleton.roomTypes, for EACH period in skeleton.periods:
+    Emit ONE Hotel row with:
+      Hotel Name = skeleton.hotelName
+      Supplier / Country / City = skeleton.hotelAddress fields
+      Room Name = room.name
+      Min Adult = room.minAdult (else 1)
+      Max Adult = room.maxAdult (else room.maxPax)
+      Max Pax = room.maxPax
+      Start Date / End Date = period.startDate / period.endDate
+      Days = weekday mask "1234567" (1=Mon..7=Sun, all days) unless restricted
+      Meal Plan = "Room Only" (per-room rates almost always exclude meals)
+      Rate Plan = "Contract" (or any rate-block title visible)
+      Rate Type = "Per Room Per Night"
+      Currency = skeleton.currency
+      DBL = the price cell at (room row, period column).
+      TPL = same price if room.maxPax >= 3 else null
+      QDP = same price if room.maxPax >= 4 else null
+      SGL = same price (per-room rate applies to a solo guest too).
+      dynamicChildValues = empty {} (no per-child rate; if a separate
+                                     child rule applies elsewhere on
+                                     the page, capture it as a note).
+
+  Expected row count = rooms × periods. Status defaults to "Open" but
+  a "Free Sell or On-Request" column in the source may say On-Request
+  for specific rooms — use that to set the row's Status field.
+
+ROW EXPANSION RULE (NON-NEGOTIABLE):
+- For each room in skeleton.roomTypes:
+    For each period in skeleton.periods:
+      For each board in skeleton.mealPlans:
+        Emit ONE row with — EVERY row must carry these hotel-level fields,
+        even if they look repetitive:
+          Hotel Name                  = skeleton.hotelName
+          Supplier                    = skeleton.supplier (else upload default)
+          Address Line 1              = skeleton.hotelAddress.addressLine1
+          Country Code                = skeleton.hotelAddress.countryCode (else upload default)
+          State / Province / Region   = skeleton.hotelAddress.stateOrRegion
+          City / Area                 = skeleton.hotelAddress.cityOrArea (else upload default)
+          Postal Code                 = skeleton.hotelAddress.postalCode
+          Phone Number                = skeleton.hotelAddress.phone
+          Email Address               = skeleton.hotelAddress.email
+          Hotel Website               = skeleton.hotelAddress.website
+          Currency                    = skeleton.currency
+          Customer Price Currency     = skeleton.currency
+          Rate Type                   = skeleton.rateType
+          Status                      = "Open" (unless contract says "On Request")
+          Rate Plan                   = "Contract" (unless rate block has a different label)
+        And:
+          Room Name = room.name
+          Min Adult = room.minAdult
+          Max Adult = room.maxAdult
+          Max Pax   = room.maxPax
+          Start Date / End Date = period.startDate / period.endDate
+          Days = weekday mask "1234567" (1=Mon..7=Sun, all days) unless restricted
+          Meal Plan = mapped board name
+          SGL / DBL / TPL / QDP filled by reading the cell at the
+            (priceRowGroup, board) row, under room.rateColumns[<slot>] column.
+          dynamicChildValues = filled per the child-policy literal text
+            for that room (see CHILD VALUE RULES below).
+- Total expected rows = rooms × periods × meals.
+
+SHARED PRICE ROWS (CRITICAL):
+- Two periods that have the SAME priceRowGroup in the skeleton share ONE
+  visual row of prices in the table. They read prices from the SAME
+  (group, board) cell, not from different price rows.
+- Example: if skeleton.periods has
+    {start: 2026-04-01, end: 2026-06-13, priceRowGroup: "G1"}
+    {start: 2026-09-15, end: 2026-10-31, priceRowGroup: "G1"}
+    {start: 2026-09-01, end: 2026-09-14, priceRowGroup: "G2"}
+  then the rows for the first TWO periods at the same board must have
+  IDENTICAL SGL/DBL/TPL/QDP values (taken from the G1 BB / G1 HB cells).
+  Only the G2 rows pull from a different row of cells.
+
+DATE / CURRENCY / MEAL PLAN MAPPING (deterministic):
+- Use skeleton.currency for Currency and Customer Price Currency.
+- Use skeleton.rateType for Rate Type ("Per Person Per Night",
+  "Per Person Per Day", or "Per Room Per Night").
+- Map board codes: BB → "Bed & Breakfast", HB → "Half Board", FB → "Full
+  Board", AI → "All Inclusive", RO → "Room Only".
+- Days is a weekday mask "1234567" (1=Mon..7=Sun), NOT a night count.
+- Status = "Open" unless contract clearly says "On Request".
+
+CHILD VALUE RULES (UNAMBIGUOUS):
+Decide each child column's valueType from the literal cell texts in
+skeleton.childPolicies[i].perRoomLiteral:
+- If literals contain "%", "free", "FOC", "n/a": valueType =
+  "discount_percentage". The stored value is the % OFF the adult rate:
+    "free" / "FOC" / "100% off"       →  100
+    "-50%" / "50% discount"           →   50
+    "-30%"                            →   30
+    "n/a" / blank / "-"               →   null   (NEVER 0)
+- If literals contain bare amounts ("30 EUR", "€10"): valueType =
+  "amount". Store the number as the literal currency amount.
+- Build the dynamicChildColumns list once, in skeleton order. Column
+  key format: CHD<position#>(<ageFrom>-<ageTo>) when position is set;
+  CHD(<ageFrom>-<ageTo>) otherwise.
+
+PER-ROW PER-COLUMN APPLICATION:
+For each row's dynamicChildValues:
+- Look up skeleton.childPolicies[i].perRoomLiteral[<this row's room name>].
+- Apply the rule above. If perRoomLiteral has no entry for this room or
+  the literal is n/a / blank / "-", the row's value MUST be null.
+- ALSO: if the row's room has skeleton.roomTypes[j].maxChildren == 0,
+  ALL dynamicChildValues for that row MUST be null regardless of what
+  the child-policy literal text says. A room that doesn't accept children
+  cannot have child rates applied.
+
+EXTRA BED (extra adult) FIELD — IMPORTANT:
+Leave the "Extra Bed" field as null. The post-processing pipeline reads
+skeleton.extraAdultPolicy.perRoomLiteral[<this row's room name>] and
+computes the actual currency amount per row using the row's DBL. You
+should NOT try to fill Extra Bed yourself — emitting the percentage as a
+number will be mis-interpreted as a currency amount.
+
+Only fill "Extra Bed" yourself when:
+  - skeleton.extraAdultPolicy is null/missing, AND
+  - you can see a clear per-room EUR amount in the contract page (eg
+    "Extra bed: 25 EUR per night"). In that case fill the amount.
+
+A row whose room's Max Adult equals Min Adult MUST have Extra Bed = null.
+
+NOT a row (put in extractionNotes):
+- Cancellation/no-show schedules
+- Gala/Christmas/New Year dinners
+- Early-booking discounts
+- Booking-window restrictions
+- Minimum-stay exceptions
+- Taxes / VAT / service charge / municipality fees
+- Room-allocation notes
+- Anything that doesn't fit (room × period × meal)
+
+OUTPUT — return a SINGLE JSON object (no markdown, no code fences):
+
+{
+  "pageHotels": [
+    {"hotelName": string, "metadata": {...}, "rateBlocks": [], "roomTypes": []}
+  ],
+  "dynamicChildColumns": [
+    {"key": string, "label": string, "ageFrom": number|null,
+     "ageTo": number|null, "ageLabel": string|null,
+     "childPosition": "first_child"|"second_child"|"third_child"|null,
+     "valueType": "amount"|"discount_percentage"|"percentage_of_adult"|"formula"|"not_applicable"|"unknown"}
+  ],
+  "hotelRows": [
+    { "Hotel Name": ..., "Room Name": ..., "Start Date": ..., "End Date": ...,
+      "Meal Plan": ..., "Currency": ..., "Rate Type": ..., "Rate Plan": "Contract",
+      "SGL": number|null, "DBL": number|null, "TPL": number|null, "QDP": number|null,
+      "Extra Bed": number|null,
+      "dynamicChildValues": { "<column key>": number|null, ... },
+      "_confidence": number, "_warnings": [string] }
+  ],
+  "extractionNotes": [
+    {"Category": "Taxes/service"|"Child policy"|"Cancellation"|"Gala dinner"|
+                 "Special offer"|"Booking window"|"Minimum stay"|
+                 "Room allocation"|"Rate anomaly"|"Meal plan nuance"|
+                 "Room supplement"|"Source ambiguity"|"Other",
+     "Note": string, "_confidence": number}
+  ]
+}
+
+VERIFY BEFORE RETURNING:
+1. len(hotelRows) == len(skeleton.roomTypes) * len(skeleton.periods) *
+   len(skeleton.mealPlans). If not, fix and re-emit.
+2. Every row has Hotel Name AND Room Name AND Start Date AND End Date
+   AND Meal Plan AND at least one of SGL/DBL/TPL/QDP populated.
+3. No CHD value is 0 because of "n/a" — n/a is null.
+4. Free / FOC → 100 (when discount_percentage), never 0.
+Return only the JSON object.

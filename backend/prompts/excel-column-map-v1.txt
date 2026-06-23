@@ -1,0 +1,174 @@
+You are reading ONE Excel sheet from a hotel rate contract. Your job is to
+return a JSON "column map" that describes the layout — not the prices. A
+deterministic Python pipeline will use your map to iterate the grid and
+produce the final rate rows. So you do NOT need to emit any hotelRows.
+Focus on getting the column classification right.
+
+The sheet is rendered to you as a tab-separated grid with row numbers and
+Excel column letters in the header — e.g.
+
+    Row    A           B           C       D       …
+    1      Hotel Name  …
+    2      Currency    EUR
+    ...
+    9      ITALIAN MARKET RATE SEASON … - BW 18.07-31.10
+   10      Travel Dates                                Children Policy
+   11      FROM        TO          release SUPERIOR GV SGL Supplement …
+   12      2025-11-01  2025-11-14  5       40          0.7
+   ...
+
+Each rate-table BLOCK is bounded by a title row (eg "Contract Rate" or
+"BW …") above it; its data rows follow the column-header row.
+
+Identify EVERY rate block in the sheet and emit one entry per block.
+
+For each block, classify each column as one of:
+  DATE_FROM       — the FROM / Start / Travel-Dates-From column
+  DATE_TO         — the TO / End / Travel-Dates-To column
+  RELEASE         — release-period column (days, integer)
+  BASE_ROOM       — the FIRST priced column (the base room type label).
+                    The cell value in each data row is the base
+                    per-person-per-night rate.
+  SGL_SUPP        — single-occupancy supplement column. Value form
+                    (multiplier 0–5 vs amount ≥ 5) inferred from sample.
+  TPL_REDUCT      — triple-occupancy reduction column.
+  QDP_REDUCT      — quad-occupancy reduction column.
+  EXTRA_BED       — extra-adult / extra-bed column.
+  CHILD           — child policy column. Capture its position
+                    (first_child / second_child / third_child) and age
+                    range. IMPORTANT: if a separate "Children Policy"
+                    detailed table appears elsewhere on the same sheet
+                    with more specific age ranges (eg the inline header
+                    says "1st child 0 to 5.99" but the detailed table
+                    says "1st CHD 2-5.99" plus an "Infant" column),
+                    PREFER the detailed table's age ranges. They
+                    represent the actual contractual policy; the inline
+                    column header is often shorthand. Emit age_from and
+                    age_to using the narrower / more accurate range.
+                    If the detailed table includes a separate "Infant"
+                    column, emit an additional CHD column for it
+                    (eg CHD(Infant) or CHD(0-1.99) when the age is
+                    implicit) with value_type "amount" and:
+                       Infant cell "free"/"FOC"/"Yes" → value 0
+                       Infant cell "n/a" → value null.
+  ROOM_UPGRADE    — any other named room/view/upgrade column whose value
+                    is a per-person supplement added on top of BASE_ROOM.
+  MEAL_UPGRADE    — meal-plan upgrade column (AI Premium, HB Supplement,
+                    FB Supplement, Ultra AI, etc). Map to SUPP-AI-ADULT,
+                    SUPP-HB-ADULT, or SUPP-FB-ADULT based on the header.
+  NOTE_COLUMN     — text/event-supplement columns (Gala Dinner, Christmas,
+                    New Year, Easter, Ferragosto, Booking Window
+                    metadata). Their content will become extraction notes.
+
+Also extract:
+  - hotel_meta: name, location, stars, currency, rate_type
+                ("Per Person Per Night" / "Per Person Per Day" /
+                "Per Room Per Night"), basic_treatment / meal plan, supplier.
+  - occupancy_table: one entry per row of the "Room Allocation" /
+                "Room Type" / "Occupancies" table when present, with
+                room_name, min_pax, max_pax, min_adult, max_adult,
+                max_child, baby_cot.
+  - child_policy_overrides: any separate per-(date, room, child position)
+                detailed child-policy table (eg "Children Policy" section)
+                — capture as a list of overrides keyed by room_name and
+                child position.
+  - special_offers_text: any standalone text below the rate blocks
+                describing special offers / restrictions / footnotes.
+
+Use the row and column indices YOU SEE in the rendered grid. Indices are
+0-based for `_idx` fields (so the header line is Row 1 in the grid but
+header_row_idx is 0 if it's literally the first row — match what you see).
+
+OUTPUT — return a SINGLE JSON object (no markdown, no fences):
+
+{
+  "hotel_meta": {
+    "name": string|null,
+    "location": string|null,
+    "stars": string|null,
+    "currency": string|null,
+    "rate_type": string|null,
+    "basic_treatment": string|null,
+    "supplier": string|null,
+    "country_code": string|null,
+    "city_or_area": string|null,
+    "state_or_region": string|null
+  },
+  "blocks": [
+    {
+      "title": string,
+      "header_row_idx": int,
+      "first_data_row_idx": int,
+      "last_data_row_idx": int,
+      "columns": {
+        "date_from": int|null,
+        "date_to": int|null,
+        "release": int|null,
+        "base_room": int|null,
+        "base_room_label": string|null,
+        "sgl_supp": int|null,
+        "tpl_reduct": int|null,
+        "qdp_reduct": int|null,
+        "extra_bed": int|null,
+        "child_cols": [
+          {
+            "col_idx": int,
+            "position": "first_child"|"second_child"|"third_child"|null,
+            "age_from": number|null,
+            "age_to": number|null,
+            "age_label": string|null,
+            "value_type": "percentage_of_adult"|"discount_percentage"|"amount"|"unknown"
+          }
+        ],
+        "upgrade_cols": [
+          { "col_idx": int, "label": string }
+        ],
+        "meal_upgrade_cols": [
+          { "col_idx": int, "label": string,
+            "supp_field": "SUPP-AI-ADULT"|"SUPP-HB-ADULT"|"SUPP-FB-ADULT" }
+        ],
+        "note_cols": [
+          { "col_idx": int, "label": string }
+        ]
+      }
+    }
+  ],
+  "occupancy_table": [
+    {
+      "room_name": string,
+      "min_pax": number|null,
+      "max_pax": number|null,
+      "min_adult": number|null,
+      "max_adult": number|null,
+      "max_child": number|null,
+      "baby_cot": number|null
+    }
+  ],
+  "child_policy_overrides": [
+    {
+      "stay_from": string|null,
+      "stay_to": string|null,
+      "room_scope": string|null,
+      "first_child_0_5_99": number|null,
+      "first_child_6_11_99": number|null,
+      "second_child_0_5_99": number|null,
+      "second_child_6_11_99": number|null,
+      "third_child_0_5_99": number|null,
+      "third_child_6_11_99": number|null,
+      "infant_allowed": boolean|null
+    }
+  ],
+  "special_offers_text": [string],
+  "cancellation_text": string|null,
+  "early_booking_text": string|null,
+  "minimum_stay_text": string|null,
+  "gala_text": [string]
+}
+
+Notes on value_type for child columns:
+- If the sample cells are decimals 0..1 (eg 0.5, 0.75, 1) → "percentage_of_adult"
+- If the sample cells are -50%, -30%, free, FOC, n/a → "discount_percentage"
+- If the sample cells are bare EUR amounts (eg 25, 30) → "amount"
+- If unclear → "unknown"
+
+Return ONLY the JSON object. No commentary.
