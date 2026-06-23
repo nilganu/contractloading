@@ -2,6 +2,11 @@ import { useState } from "react";
 
 type Status = "idle" | "working" | "done" | "error";
 
+// In dev `/api` is proxied by Vite; in prod set VITE_API_BASE to the
+// absolute backend URL, e.g. https://hotel-contract-backend.onrender.com/api.
+const API_BASE = (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
+  || "/api";
+
 export default function SimpleUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -17,7 +22,7 @@ export default function SimpleUpload() {
     fd.append("file", file);
 
     try {
-      const res = await fetch("/api/contracts/extract-and-export", {
+      const res = await fetch(`${API_BASE}/contracts/extract-and-export`, {
         method: "POST",
         body: fd,
       });
