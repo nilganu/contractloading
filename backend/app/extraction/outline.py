@@ -20,7 +20,12 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
-from .splitters import is_index_sheet, list_excel_sheets
+from .extractor import as_content
+from .splitters import (
+    is_index_sheet,
+    list_excel_sheets,
+    list_hidden_excel_sheets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +70,12 @@ def outline_excel_locally(file_path: Path) -> DocumentOutline:
     """For Excel files, the sheet names ARE the hotels (almost always).
     This skips the LLM entirely."""
     sheets = list_excel_sheets(file_path)
+    hidden = set(list_hidden_excel_sheets(file_path))
     hotels: List[HotelOutlineEntry] = []
     for s in sheets:
+        if s in hidden:
+            logger.info("outline (excel): skipping hidden sheet %r", s)
+            continue
         if is_index_sheet(s):
             logger.info("outline (excel): skipping index sheet %r", s)
             continue
@@ -74,7 +83,10 @@ def outline_excel_locally(file_path: Path) -> DocumentOutline:
     return DocumentOutline(
         is_multi_hotel=len(hotels) > 1,
         hotels=hotels,
-        notes=f"Excel workbook with {len(sheets)} sheet(s); kept {len(hotels)} as hotels.",
+        notes=(
+            f"Excel workbook with {len(sheets)} sheet(s) "
+            f"({len(hidden)} hidden, skipped); kept {len(hotels)} as hotels."
+        ),
     )
 
 
@@ -116,7 +128,7 @@ def outline_via_llm(
             {
                 "role": "user",
                 "content": [
-                    file_block,
+                    *as_content(file_block),
                     {"type": "input_text", "text": user_directive},
                 ],
             },

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         default="gpt-5.4-mini", alias="OPENAI_MODEL_MINI"
     )
 
+    # "parsed": send our own addressed text view (Excel grid / Docling)
+    # with the file; "raw": send the file only (pre-Nov-2026 behaviour,
+    # kept for A/B comparison in eval/run_eval.py).
+    reader_mode: str = Field(default="parsed", alias="READER_MODE")
+
     database_url: str = Field(default="sqlite:///./hotel.db", alias="DATABASE_URL")
     storage_dir: str = Field(default="./storage", alias="STORAGE_DIR")
 

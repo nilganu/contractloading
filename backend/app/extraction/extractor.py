@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import get_settings
 from .canonical import ContractExtraction
+from .reader import read_source
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,39 @@ def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def _upload(client, file_path: Path) -> Tuple[str, Dict[str, Any]]:
+_AUTO = object()
+
+
+def as_content(file_block: Any) -> List[Dict[str, Any]]:
+    """Content items for one source: a single block or a list of them."""
+    return list(file_block) if isinstance(file_block, list) else [file_block]
+
+
+def _upload(
+    client, file_path: Path, view: Any = _AUTO
+) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+    """Prepare a contract for the model; return (file_id, content_blocks).
+
+    ``view`` is the reader's SourceView (``_AUTO``: read it here; ``None``:
+    no reader output, send the raw file only). The raw file is uploaded
+    when the view says the model benefits from it (PDF page images,
+    images) or when there is no view; ``file_id`` is then the upload to
+    delete afterwards, else ``None``. The view's addressed text is added
+    as an ``input_text`` block.
+    """
+    if view is _AUTO:
+        view = read_source(file_path)
+    blocks: List[Dict[str, Any]] = []
+    file_id: Optional[str] = None
+    if view is None or view.send_file:
+        file_id, block = _upload_raw(client, file_path)
+        blocks.append(block)
+    if view is not None:
+        blocks.append({"type": "input_text", "text": view.llm_text()})
+    return file_id, blocks
+
+
+def _upload_raw(client, file_path: Path) -> Tuple[str, Dict[str, Any]]:
     """Upload file to OpenAI; return (file_id, content_block)."""
     ext = file_path.suffix.lower()
     if file_path.stat().st_size > MAX_BYTES:
@@ -159,7 +192,7 @@ def parse_extraction_with_file(
             {
                 "role": "user",
                 "content": [
-                    file_block,
+                    *as_content(file_block),
                     {
                         "type": "input_text",
                         "text": _build_user_directive(
@@ -185,10 +218,11 @@ def extract_contract(
     file_path: str | Path,
     *,
     options: Optional[Dict[str, Any]] = None,
+    view: Any = _AUTO,
 ) -> ContractExtraction:
     """Single-shot extraction: upload, parse, delete. Kept for the
     single-hotel fast path and as a fallback when the orchestrator
-    decides not to decompose."""
+    decides not to decompose. ``view``: reader output to reuse."""
     file_path = Path(file_path)
     client = _make_openai_client()
     logger.info(
@@ -197,17 +231,18 @@ def extract_contract(
         file_path.name,
         file_path.stat().st_size,
     )
-    file_id, file_block = _upload(client, file_path)
+    file_id, file_block = _upload(client, file_path, view)
     logger.info("uploaded to OpenAI: file_id=%s", file_id)
     try:
         return parse_extraction_with_file(
             client, file_block, file_name=file_path.name, options=options
         )
     finally:
-        try:
-            client.files.delete(file_id)
-        except Exception:  # noqa: BLE001
-            logger.warning("could not delete uploaded file %s", file_id)
+        if file_id is not None:
+            try:
+                client.files.delete(file_id)
+            except Exception:  # noqa: BLE001
+                logger.warning("could not delete uploaded file %s", file_id)
 
 
 # Re-exported so the orchestrator can drive the upload/delete itself

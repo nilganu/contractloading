@@ -1,0 +1,10 @@
+# Optional: layout-aware reading of PDFs, scans, images, Word, PowerPoint,
+# HTML and .eml emails (app/extraction/reader.py). Without it the app
+# still works and sends the raw file to OpenAI as before.
+#
+#   pip install -r requirements.txt -r requirements-docling.txt
+#
+# Pulls in PyTorch and downloads layout/table/OCR models (~1 GB) on first
+# use. Needs ~2 GB RAM while parsing a PDF: more than Render's Starter
+# plan (512 MB) has.
+docling==2.150.1

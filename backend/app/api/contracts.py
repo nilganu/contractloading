@@ -22,6 +22,7 @@ from ..schemas.models import (
 )
 from ..extraction.moonstride_mapper import map_extraction
 from ..extraction.orchestrator import orchestrate_extraction
+from ..extraction.review_notes import write_review_notes
 from ..services import jobs as job_service
 from ..services.moonstride_templates import TEMPLATES as MOONSTRIDE_TEMPLATES
 from ..services.moonstride_templates import preview_moonstride, write_raw_rows
@@ -60,6 +61,7 @@ async def extract_and_export(
     run_id = _uuid.uuid4().hex[:8]
     hotel_path = out_dir / f"{stem}-moonstride-{run_id}.xlsx"
     supp_path = out_dir / f"{stem}-supplements-{run_id}.xlsx"
+    notes_path = out_dir / f"{stem}-review-notes-{run_id}.xlsx"
     zip_path = out_dir / f"{stem}-bundle-{run_id}.zip"
 
     try:
@@ -103,12 +105,16 @@ async def extract_and_export(
         # header-only output distinguishes "no supplements" from "failed".
         write_supplement_rows(mapped.supplement_rows, supp_path)
 
+        # 4b. Review notes (model notes + amounts not found in the source).
+        write_review_notes(extraction, notes_path)
+
         # 5. Bundle into a ZIP. Inner filenames are deterministic (no uuid).
         with _zipfile.ZipFile(
             zip_path, mode="w", compression=_zipfile.ZIP_DEFLATED
         ) as zf:
             zf.write(hotel_path, arcname=f"{stem}-moonstride.xlsx")
             zf.write(supp_path, arcname=f"{stem}-supplements.xlsx")
+            zf.write(notes_path, arcname=f"{stem}-review-notes.xlsx")
 
         return FileResponse(
             zip_path,
@@ -118,7 +124,7 @@ async def extract_and_export(
     finally:
         # Clean up temp upload + intermediates (FileResponse already
         # streams the ZIP before this block runs).
-        for p in (tmp_in, hotel_path, supp_path):
+        for p in (tmp_in, hotel_path, supp_path, notes_path):
             try:
                 p.unlink()
             except OSError:

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from ..config import get_settings
 from .canonical import HotelExtraction, Supplement
+from .extractor import as_content
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def verify_hotel(
             {
                 "role": "user",
                 "content": [
-                    file_block,
+                    *as_content(file_block),
                     {"type": "input_text", "text": user_text},
                 ],
             },

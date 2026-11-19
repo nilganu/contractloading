@@ -31,3 +31,7 @@ backend/storage/exports/*
 .idea/
 *.swp
 .DS_Store
+
+# Eval outputs
+backend/eval/reports/
+backend/eval/cases/*/draft.json

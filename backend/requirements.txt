@@ -1,12 +1,13 @@
 fastapi==0.110.2
 uvicorn[standard]==0.29.0
 python-multipart==0.0.9
-pydantic==2.6.4
-pydantic-settings==2.2.1
+pydantic==2.14.3
+pydantic-settings==2.15.0
 SQLAlchemy==2.0.29
-openpyxl==3.1.2
+openpyxl==3.1.5
 xlrd==2.0.1
 pdfplumber==0.11.0
+pypdf==4.3.1
 python-docx==1.1.0
 Pillow==10.3.0
 python-dotenv==1.0.1

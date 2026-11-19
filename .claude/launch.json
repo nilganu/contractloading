@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set OPENAI_API_KEY=&& cd /d backend && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --log-level info"],
+      "port": 8001,
+      "url": "http://127.0.0.1:8001"
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d frontend && npm run dev -- --port 5175 --host 127.0.0.1"],
+      "port": 5175,
+      "url": "http://127.0.0.1:5175"
+    }
+  ]
+}

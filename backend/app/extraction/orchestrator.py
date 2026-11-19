@@ -41,7 +41,15 @@ from .outline import (
     outline_excel_locally,
     outline_via_llm,
 )
-from .splitters import split_for_hotel
+from .cleanup import drop_undated_copies, flag_overlapping_seasons, tidy_extraction
+from .grounding import add_grounding_notes
+from .reader import SourceView, read_source
+from .splitters import (
+    convert_xls_to_xlsx,
+    list_pdf_page_count,
+    parse_page_hint,
+    split_for_hotel,
+)
 from .validators import ValidationIssue, validate_hotel
 from .verifier import collect_missing_supplement_names, verify_hotel
 
@@ -64,14 +72,53 @@ def orchestrate_extraction(
     parallel.
     """
     file_path = Path(file_path)
+    if file_path.suffix.lower() != ".xls":
+        return _finalize(_orchestrate(file_path, options=options))
+
+    # Legacy .xls: openpyxl can't read it, so the local outline and the
+    # sheet splitter would crash. Convert once to .xlsx (same stem, so the
+    # filename shown to the LLM and in exports stays recognisable).
+    conv_dir = Path(tempfile.mkdtemp(prefix="hotel-xls-"))
+    try:
+        converted = convert_xls_to_xlsx(
+            file_path, conv_dir / f"{file_path.stem}.xlsx"
+        )
+        logger.info("converted legacy .xls to %s", converted.name)
+        return _finalize(_orchestrate(converted, options=options))
+    finally:
+        shutil.rmtree(conv_dir, ignore_errors=True)
+
+
+def _finalize(extraction: ContractExtraction) -> ContractExtraction:
+    """General clean-up on every path: hotel-name alignment, one season per
+    date range, breakfast meal codes, duplicate supplements, then a review
+    note for seasons that still overlap."""
+    tidy_extraction(extraction)
+    _dedup_supplements(extraction)
+    drop_undated_copies(extraction)
+    flag_overlapping_seasons(extraction)
+    return extraction
+
+
+def _orchestrate(
+    file_path: Path,
+    *,
+    options: Optional[Dict[str, Any]] = None,
+) -> ContractExtraction:
     ext = file_path.suffix.lower()
     client = _make_openai_client()
+
+    # Read the source once (Excel grid / Docling layout parse). Per-hotel
+    # calls reuse it: Excel sub-sheets are re-read cheaply, PDF hotels get
+    # a page slice of this parse instead of a second Docling run.
+    whole_view = read_source(file_path)
 
     # ----------------------------------------------------------------------
     # 1. Outline
     # ----------------------------------------------------------------------
     outline: Optional[DocumentOutline] = None
     whole_file_id: Optional[str] = None
+    whole_blocks: Optional[List[Dict[str, Any]]] = None
     if ext in (".xlsx", ".xls"):
         outline = outline_excel_locally(file_path)
         logger.info(
@@ -81,9 +128,11 @@ def orchestrate_extraction(
         # PDF / DOCX / image / other → one LLM call against the whole file
         # to enumerate hotels. We keep the upload around as a fallback.
         try:
-            whole_file_id, whole_block = upload_file(client, file_path)
+            whole_file_id, whole_blocks = upload_file(
+                client, file_path, whole_view
+            )
             outline = outline_via_llm(
-                client, whole_file_id, whole_block,
+                client, whole_file_id, whole_blocks,
                 source_filename=file_path.name,
             )
             logger.info(
@@ -102,9 +151,11 @@ def orchestrate_extraction(
     # ----------------------------------------------------------------------
     if outline is None or len(outline.hotels) <= 1:
         try:
-            if whole_file_id is None:
-                whole_file_id, _ = upload_file(client, file_path)
-            file_block = {"type": "input_file", "file_id": whole_file_id}
+            if whole_blocks is None:
+                whole_file_id, whole_blocks = upload_file(
+                    client, file_path, whole_view
+                )
+            file_block = whole_blocks
             extraction = parse_extraction_with_file(
                 client, file_block,
                 file_name=file_path.name, options=options,
@@ -126,6 +177,7 @@ def orchestrate_extraction(
                 options, extraction,
             )
             _dedup_supplements(extraction)
+            add_grounding_notes(extraction, whole_view)
             return extraction
         finally:
             if whole_file_id is not None:
@@ -148,7 +200,7 @@ def orchestrate_extraction(
             futures = {
                 ex.submit(
                     _extract_one_hotel,
-                    client, file_path, hotel, sub_dir, options,
+                    client, file_path, hotel, sub_dir, options, whole_view,
                 ): hotel
                 for hotel in outline.hotels
             }
@@ -171,7 +223,11 @@ def orchestrate_extraction(
             "no per-hotel results (%d errors); falling back to single-shot",
             len(errors),
         )
-        return extract_contract(file_path, options=options)
+        extraction = extract_contract(
+            file_path, options=options, view=whole_view
+        )
+        add_grounding_notes(extraction, whole_view)
+        return extraction
 
     logger.info(
         "multi-hotel extraction: %d/%d hotels succeeded",
@@ -185,12 +241,29 @@ def orchestrate_extraction(
 # --------------------------------------------------------------------------
 
 
+def _sub_view(
+    whole_view: Optional[SourceView],
+    src_file: Path,
+    sub_path: Path,
+    mode: str,
+    source_hint: Optional[str],
+) -> Optional[SourceView]:
+    """Reader view matching the sub-file this hotel's LLM call gets."""
+    if mode == "excel_sheet":
+        return read_source(sub_path)
+    if mode == "pdf_pages" and whole_view is not None:
+        pages = parse_page_hint(source_hint, list_pdf_page_count(src_file))
+        return whole_view.slice_pages(pages)
+    return whole_view
+
+
 def _extract_one_hotel(
     client,
     src_file: Path,
     hotel: HotelOutlineEntry,
     sub_dir: Path,
     options: Optional[Dict[str, Any]],
+    whole_view: Optional[SourceView] = None,
 ) -> ContractExtraction:
     """Carve a sub-file for this hotel, upload it, extract, validate,
     retry on missing rates, delete the upload. Runs inside a worker
@@ -203,7 +276,8 @@ def _extract_one_hotel(
         "per-hotel sub-file for %r: %s (mode=%s, size=%dB)",
         hotel.name, sub_path.name, mode, sub_path.stat().st_size,
     )
-    file_id, file_block = upload_file(client, sub_path)
+    view = _sub_view(whole_view, src_file, sub_path, mode, hotel.source_hint)
+    file_id, file_block = upload_file(client, sub_path, view)
     try:
         extraction = parse_extraction_with_file(
             client,
@@ -219,6 +293,7 @@ def _extract_one_hotel(
             client, file_block, src_file, hotel.name, options, extraction
         )
         _dedup_supplements(extraction)
+        add_grounding_notes(extraction, view)
         return extraction
     finally:
         _try_delete(client, file_id)
@@ -457,11 +532,14 @@ def _dedup_supplements(extraction: ContractExtraction) -> None:
     # Two-pass merge: rather than naive first-seen wins, prefer the
     # entry with the MORE complete data (both prices filled) when
     # keys collide.
-    def _completeness(s) -> int:
+    def _completeness(s) -> Any:
+        # Tie-break on the more specific name/description, e.g. keep
+        # "Public Holiday Surcharge — New Year" over "Public Holiday Surcharge".
         return (
             (1 if s.supplier_cost is not None else 0)
             + (1 if s.customer_price is not None else 0)
-            + (1 if s.name else 0)
+            + (1 if s.name else 0),
+            len(s.name or "") + len(s.description or ""),
         )
 
     best_by_key: Dict[Any, Any] = {}
@@ -754,7 +832,9 @@ def _aggregate(
 # --------------------------------------------------------------------------
 
 
-def _try_delete(client, file_id: str) -> None:
+def _try_delete(client, file_id: Optional[str]) -> None:
+    if file_id is None:
+        return
     try:
         client.files.delete(file_id)
     except Exception:  # noqa: BLE001

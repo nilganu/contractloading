@@ -157,10 +157,23 @@ class RoomType(BaseModel):
     max_children: Optional[int] = None
 
 
-class Season(BaseModel):
-    label: str = Field(description="Contract-given label, e.g. 'High', 'Peak', '01.05-15.05'.")
+class DateRange(BaseModel):
     start_date: str = Field(description="ISO 'YYYY-MM-DD'.")
     end_date: str = Field(description="ISO 'YYYY-MM-DD'.")
+
+
+class Season(BaseModel):
+    label: str = Field(description="Contract-given label, e.g. 'High', 'Peak', '01.05-15.05'.")
+    start_date: str = Field(description="ISO 'YYYY-MM-DD'. First date range of this season.")
+    end_date: str = Field(description="ISO 'YYYY-MM-DD'. End of the FIRST date range only.")
+    additional_ranges: Optional[List[DateRange]] = Field(
+        default=None,
+        description=(
+            "Further date ranges that share this season's prices, e.g. the "
+            "same season repeated next year, or Low season split around High "
+            "season. Never merge separate ranges into one start/end span."
+        ),
+    )
     min_stay: Optional[int] = Field(
         default=None,
         description="Minimum nights required in this season. Null when not specified.",

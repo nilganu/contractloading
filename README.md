@@ -247,6 +247,42 @@ cd backend
 pytest tests/test_regression.py -v
 ```
 
+## Document reader (live `/extract-and-export` path)
+
+Before anything goes to OpenAI, [backend/app/extraction/reader.py](backend/app/extraction/reader.py)
+builds an addressed text view of the contract:
+
+| Input | Engine | What the model receives |
+|---|---|---|
+| `.xlsx` (and `.xls`, converted first) | own openpyxl grid | every visible cell as `F14=120`, formula results, merged ranges, `~~struck~~` cells, comments; hidden sheets/rows/columns left out. No file upload. |
+| `.pdf` | Docling (layout + TableFormer, OCR only for scanned/image pages) | the PDF **and** per-page Markdown with tables |
+| images, `.docx`, `.pptx`, `.html`, `.eml` | Docling | text/tables (+ the file where OpenAI accepts it) |
+
+After extraction, [grounding.py](backend/app/extraction/grounding.py) checks every
+extracted price against the numbers found in the source. Amounts not found, and
+reader warnings (e.g. "values were OCR'd"), are listed in
+`<name>-review-notes.xlsx`, the third file in the export ZIP.
+
+- Docling is optional: `pip install -r requirements.txt -r requirements-docling.txt`.
+  Without it PDFs/images go to OpenAI as raw files, as before. It needs about
+  2 GB RAM, so on Render it needs a bigger plan than Starter. On a laptop CPU,
+  a digital PDF takes about 5 s/page and a scanned one about 35 s/page (OCR).
+- `READER_MODE=raw` in `backend/.env` turns the reader off (file-only, old behaviour).
+
+### Accuracy benchmark
+
+`backend/eval/` scores the pipeline field by field (hotels, rooms, seasons,
+every rate cell, supplements, child bands) against **human-verified** answers:
+
+```bash
+cd backend
+python -m eval.run_eval --draft my-case        # needs eval/cases/my-case/input.<ext>
+# check draft.json against the contract, fix it, save as expected.json
+python -m eval.run_eval --modes parsed raw     # A/B: reader vs raw file
+```
+
+Live OpenAI calls; costs the same as a normal extraction per case and mode.
+
 ## Known limitations
 
 - OCR / vision uses OpenAI vision; if `OPENAI_API_KEY` is unset the image

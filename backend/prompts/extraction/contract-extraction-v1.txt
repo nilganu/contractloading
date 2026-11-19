@@ -93,6 +93,10 @@ GENERAL RULES
 - **Currency** is an ISO-4217 3-letter code (e.g. "EUR", "USD", "GBP").
 - **Meal plan**: `code` is whatever the contract uses ("BB", "HB", "PAI",
   "AI", "FB", "RO"); `canonical` is the closest match from the enum.
+  Breakfast-only codes ("ABF" = American breakfast, "CBF" = continental
+  breakfast, "Room + breakfast") are "Bed and Breakfast". "American" and
+  "Modified American" are the American PLAN (full / half board), never a
+  breakfast type.
 - **detected_rate_type** is the dominant rate type across the contract:
   - "Per Person Per Night" — per-person, per-night grids (most common).
   - "Per Room Per Night" — per-room, per-night where the contract prices
@@ -253,6 +257,13 @@ minimum-stay value or a release period (days before arrival when the
 allotment is released) for a season — usually in an allotment grid or a
 "Min Stay (days)" / "Release Time (days)" row — record it on the matching
 `Season`. Leave null when the contract is silent.
+
+**One season, several date ranges.** A season column or row often lists
+more than one date range with the same prices — e.g. "Season 1: 01 Nov 25 -
+25 Dec 2025, 01 Nov 26 - 25 Dec 2026", or "Low: 01.01-28.04 and
+03.09-31.12". Put the FIRST range in `start_date`/`end_date` and every other
+range in `additional_ranges`. NEVER merge them into one span from the first
+start to the last end — that span covers dates belonging to other seasons.
 
 **Market-segment / multi-version rate tables.** SINGLE-MARKET is the
 DEFAULT. Only treat a sheet as multi-market when you can point to an
