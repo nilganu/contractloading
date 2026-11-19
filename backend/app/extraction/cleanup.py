@@ -37,6 +37,11 @@ def _tokens(name: Optional[str]) -> Set[str]:
 
 
 def _best_hotel(name: Optional[str], hotel_names: List[str]) -> Optional[str]:
+    """The hotel ``name`` refers to. With one hotel that is always it. With
+    several, only an unambiguous match counts (same name ignoring case, or
+    the same distinctive words, e.g. "Sea View Resort Co., Ltd." and "Sea
+    View Resort"); a merely similar name ("Barcelo Tiran" vs "Barcelo
+    Sharm") is left alone rather than moved to the wrong hotel."""
     if not hotel_names:
         return None
     if len(hotel_names) == 1:
@@ -46,15 +51,8 @@ def _best_hotel(name: Optional[str], hotel_names: List[str]) -> Optional[str]:
         if h.strip().casefold() == folded:
             return h
     toks = _tokens(name)
-    scored = []
-    for h in hotel_names:
-        ht = _tokens(h)
-        if toks and ht:
-            scored.append((len(toks & ht) / len(toks | ht), h))
-    scored.sort(reverse=True)
-    if scored and scored[0][0] > 0 and (len(scored) == 1 or scored[0][0] > scored[1][0]):
-        return scored[0][1]
-    return None
+    same = [h for h in hotel_names if toks and _tokens(h) == toks]
+    return same[0] if len(same) == 1 else None
 
 
 def align_hotel_names(extraction: ContractExtraction) -> int:
@@ -77,6 +75,22 @@ def align_hotel_names(extraction: ContractExtraction) -> int:
 
 def _range_label(base: str, n: int) -> str:
     return f"{base} [{n}]"
+
+
+def _follows_season(s, season: Season) -> bool:
+    """A season-linked supplement repeats in the season's other ranges only
+    when its own dates are the season's (or absent). A one-off date inside
+    the season (a gala on 24.12.2025) is not copied: whether it recurs is
+    not stated."""
+    dates = (s.start_date, s.end_date)
+    return dates == (None, None) or dates == (season.start_date, season.end_date)
+
+
+def _supplement_for_range(s, season: Season, label: str, r):
+    update = {"season_label": label}
+    if s.start_date or s.end_date:
+        update.update(start_date=r.start_date, end_date=r.end_date)
+    return s.model_copy(update=update)
 
 
 def expand_season_ranges(extraction: ContractExtraction) -> int:
@@ -106,9 +120,10 @@ def expand_season_ranges(extraction: ContractExtraction) -> int:
                     if rate.season_label == season.label
                 )
                 extraction.supplements.extend(
-                    s.model_copy(update={"season_label": label})
+                    _supplement_for_range(s, season, label, r)
                     for s in list(extraction.supplements or [])
                     if s.season_label == season.label and s.hotel_name == name
+                    and _follows_season(s, season)
                 )
                 added += 1
         hotel.seasons = new_seasons
@@ -189,7 +204,8 @@ def drop_undated_copies(extraction: ContractExtraction) -> int:
     def rule(s):
         cost = s.supplier_cost if s.supplier_cost is not None else s.customer_price
         return (s.hotel_name, s.kind, s.charge_type, s.calculation_method,
-                s.traveler_type, s.ordinal, s.age_min, s.age_max, cost, s.cost_format)
+                s.traveler_type, s.ordinal, s.age_min, s.age_max, cost, s.cost_format,
+                (s.season_label or "").strip().casefold())
 
     dated = [s for s in extraction.supplements if s.start_date or s.end_date]
     keep = []
@@ -206,10 +222,34 @@ def drop_undated_copies(extraction: ContractExtraction) -> int:
     return dropped
 
 
+def expand_supplement_ranges(extraction: ContractExtraction) -> int:
+    """One supplement row per validity range. Returns rows added."""
+    out = []
+    added = 0
+    for s in extraction.supplements or []:
+        ranges = [
+            r for r in (s.additional_ranges or [])
+            if (r.start_date, r.end_date) != (s.start_date, s.end_date)
+        ]
+        s.additional_ranges = None
+        out.append(s)
+        for r in ranges:
+            out.append(s.model_copy(update={
+                "start_date": r.start_date, "end_date": r.end_date,
+                "additional_ranges": None,
+            }))
+            added += 1
+    extraction.supplements = out
+    if added:
+        logger.info("expanded %d extra supplement date range(s)", added)
+    return added
+
+
 def tidy_extraction(extraction: ContractExtraction) -> ContractExtraction:
     """Run every clean-up step except supplement de-duplication (done by the
     orchestrator right after, once hotel names agree)."""
     align_hotel_names(extraction)
     expand_season_ranges(extraction)
+    expand_supplement_ranges(extraction)
     fix_breakfast_meal_plans(extraction)
     return extraction

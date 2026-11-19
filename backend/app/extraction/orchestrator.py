@@ -41,7 +41,12 @@ from .outline import (
     outline_excel_locally,
     outline_via_llm,
 )
-from .cleanup import drop_undated_copies, flag_overlapping_seasons, tidy_extraction
+from .cleanup import (
+    align_hotel_names,
+    drop_undated_copies,
+    flag_overlapping_seasons,
+    tidy_extraction,
+)
 from .grounding import add_grounding_notes
 from .reader import SourceView, read_source
 from .splitters import (
@@ -94,10 +99,17 @@ def _finalize(extraction: ContractExtraction) -> ContractExtraction:
     date range, breakfast meal codes, duplicate supplements, then a review
     note for seasons that still overlap."""
     tidy_extraction(extraction)
-    _dedup_supplements(extraction)
-    drop_undated_copies(extraction)
+    _clean_supplements(extraction)
     flag_overlapping_seasons(extraction)
     return extraction
+
+
+def _clean_supplements(extraction: ContractExtraction) -> None:
+    """Hotel-name alignment and duplicate removal. Runs before the price
+    check too, so its notes only name supplements that are exported."""
+    align_hotel_names(extraction)
+    _dedup_supplements(extraction)
+    drop_undated_copies(extraction)
 
 
 def _orchestrate(
@@ -108,10 +120,12 @@ def _orchestrate(
     ext = file_path.suffix.lower()
     client = _make_openai_client()
 
-    # Read the source once (Excel grid / Docling layout parse). Per-hotel
-    # calls reuse it: Excel sub-sheets are re-read cheaply, PDF hotels get
-    # a page slice of this parse instead of a second Docling run.
-    whole_view = read_source(file_path)
+    # Read the source once (Excel grid / Docling layout parse). PDF hotels
+    # get a page slice of this parse instead of a second Docling run. Excel
+    # is outlined locally and each hotel re-reads only its own sheet, so the
+    # whole-workbook grid is built only if the single-hotel path needs it.
+    local_outline = ext in (".xlsx", ".xls")
+    whole_view = None if local_outline else read_source(file_path)
 
     # ----------------------------------------------------------------------
     # 1. Outline
@@ -119,7 +133,7 @@ def _orchestrate(
     outline: Optional[DocumentOutline] = None
     whole_file_id: Optional[str] = None
     whole_blocks: Optional[List[Dict[str, Any]]] = None
-    if ext in (".xlsx", ".xls"):
+    if local_outline:
         outline = outline_excel_locally(file_path)
         logger.info(
             "outline (excel, local): %d hotel(s)", len(outline.hotels)
@@ -150,6 +164,8 @@ def _orchestrate(
     #    than the per-hotel sub-files in the multi-hotel path.
     # ----------------------------------------------------------------------
     if outline is None or len(outline.hotels) <= 1:
+        if whole_view is None and local_outline:
+            whole_view = read_source(file_path)
         try:
             if whole_blocks is None:
                 whole_file_id, whole_blocks = upload_file(
@@ -176,7 +192,7 @@ def _orchestrate(
                 client, file_block, file_path, focus_name,
                 options, extraction,
             )
-            _dedup_supplements(extraction)
+            _clean_supplements(extraction)
             add_grounding_notes(extraction, whole_view)
             return extraction
         finally:
@@ -223,9 +239,12 @@ def _orchestrate(
             "no per-hotel results (%d errors); falling back to single-shot",
             len(errors),
         )
+        if whole_view is None and local_outline:
+            whole_view = read_source(file_path)
         extraction = extract_contract(
             file_path, options=options, view=whole_view
         )
+        _clean_supplements(extraction)
         add_grounding_notes(extraction, whole_view)
         return extraction
 
@@ -292,7 +311,7 @@ def _extract_one_hotel(
         extraction = _verify_and_retry_supplements(
             client, file_block, src_file, hotel.name, options, extraction
         )
-        _dedup_supplements(extraction)
+        _clean_supplements(extraction)
         add_grounding_notes(extraction, view)
         return extraction
     finally:
@@ -525,7 +544,10 @@ def _dedup_supplements(extraction: ContractExtraction) -> None:
             s.traveler_type, s.ordinal,
             s.age_min, s.age_max,
             cost,
-            (s.season_label or "").strip().lower(),
+            # Own dates identify the period; a season label on top of the
+            # same dates is redundant (one copy often has it, one not).
+            "" if (s.start_date or s.end_date)
+            else (s.season_label or "").strip().lower(),
             s.start_date, s.end_date,
         )
 

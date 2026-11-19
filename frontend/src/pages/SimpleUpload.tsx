@@ -57,10 +57,8 @@ export default function SimpleUpload() {
         Hotel Contract Extractor
       </h1>
       <p className="mt-2 text-sm text-slate-600">
-        Upload a contract — PDF, Excel, Word, image, etc. GPT extracts it
-        into a canonical model with strict schema enforcement; the backend
-        deterministically writes two Moonstride imports — Hotel and
-        Supplements — bundled into a single ZIP.
+        Upload a hotel contract (PDF, Excel, Word or image). You get a ZIP
+        with the moonstride hotel file, the supplements file and review notes.
       </p>
 
       <form
@@ -93,7 +91,7 @@ export default function SimpleUpload() {
 
         {status === "working" && (
           <p className="text-xs text-slate-500">
-            Sending the file to GPT — this usually takes 30–90 seconds.
+            Reading the contract. This usually takes 1 to 3 minutes.
           </p>
         )}
         {error && (
@@ -103,7 +101,7 @@ export default function SimpleUpload() {
         )}
         {status === "done" && !error && (
           <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            Done — your bundle (hotel + supplements) should have started downloading.
+            Done. Your ZIP should have started downloading.
           </div>
         )}
       </form>

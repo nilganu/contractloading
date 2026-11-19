@@ -80,9 +80,22 @@ def split_excel_sheet(
     for mr in src_ws.merged_cells.ranges:
         new_ws.merge_cells(str(mr))
 
-    # Column widths.
+    # Column widths and hidden columns (a dimension may cover a range).
     for col, dim in src_ws.column_dimensions.items():
-        new_ws.column_dimensions[col].width = dim.width
+        nd = new_ws.column_dimensions[col]
+        nd.width = dim.width
+        nd.hidden = dim.hidden
+        nd.min, nd.max = dim.min, dim.max
+
+    # Hidden rows, and comments: the reader leaves hidden rows out and
+    # shows comments, so the per-hotel copy must keep both.
+    for r, dim in src_ws.row_dimensions.items():
+        if dim.hidden:
+            new_ws.row_dimensions[r].hidden = True
+    for row in src_ws.iter_rows():
+        for cell in row:
+            if cell.comment is not None:
+                new_ws.cell(row=cell.row, column=cell.column).comment = copy(cell.comment)
 
     new_wb.save(dest)
     return dest

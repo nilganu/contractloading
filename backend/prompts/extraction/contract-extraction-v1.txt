@@ -452,6 +452,11 @@ Per supplement row:
     "1st Adult", "2nd Child (2-12)".
 - `start_date`/`end_date` ISO `YYYY-MM-DD` when the supplement applies
   only to a sub-period of the contract (festive 23.12 – 05.01 etc).
+  When the contract gives several validity ranges for the SAME supplement
+  or offer (e.g. "stays 01 April 2026 to 31 Dec 2026 and 01 Jan 2027 to 31
+  Mar 2027"), put the first in `start_date`/`end_date` and the others in
+  `additional_ranges`. Apply this to every supplement the ranges are
+  listed for, not only the first one in the block.
 - `age_min`/`age_max` for Child / Infant rows (e.g. 2 / 11.99 for child,
   0 / 1.99 for infant).
 - `supplier_cost` — the contract's listed price.

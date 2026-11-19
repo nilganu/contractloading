@@ -296,8 +296,16 @@ class Supplement(BaseModel):
     )
     contract_period: Optional[str] = None
     season_label: Optional[str] = None
-    start_date: Optional[str] = Field(default=None, description="ISO 'YYYY-MM-DD'.")
-    end_date: Optional[str] = Field(default=None, description="ISO 'YYYY-MM-DD'.")
+    start_date: Optional[str] = Field(default=None, description="ISO 'YYYY-MM-DD'. First date range.")
+    end_date: Optional[str] = Field(default=None, description="ISO 'YYYY-MM-DD'. End of the FIRST range only.")
+    additional_ranges: Optional[List[DateRange]] = Field(
+        default=None,
+        description=(
+            "Further date ranges with the same price and rules (e.g. an offer "
+            "valid 01.04-31.12.2026 and 01.01-31.03.2027). Never merge them "
+            "into one span, never drop them."
+        ),
+    )
     charge_type: ChargeTypeCanonical
     calculation_method: CalculationMethodCanonical
     traveler_type: TravelerTypeCanonical

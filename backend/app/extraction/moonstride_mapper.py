@@ -825,6 +825,7 @@ def _derive_meal_plan_supplements(
     it directly.
     """
     out: List[Dict[str, Any]] = []
+    per_room = (extraction.detected_rate_type or "").startswith("Per Room")
     for hotel in extraction.hotels:
         meals = hotel.meal_plans or []
         if len(meals) < 2:
@@ -856,9 +857,14 @@ def _derive_meal_plan_supplements(
         for (room_name, season_label), meal_rates in by_room_season.items():
             if len(meal_rates) < 2:
                 continue
-            # Pick the cheapest meal-plan rate as the base (use dbl/sgl).
+            # Pick the cheapest meal-plan rate as the base, comparing the
+            # first occupancy column the room is priced in (SGL/DBL for
+            # standard rooms, TPL/QUD for family rooms).
             def _base_rate(r: Rate) -> Optional[float]:
-                return r.dbl if r.dbl is not None else r.sgl
+                for v in (r.dbl, r.sgl, r.tpl, r.qdp):
+                    if v is not None:
+                        return v
+                return None
             scored = sorted(
                 meal_rates.items(),
                 key=lambda kv: (_base_rate(kv[1]) is None, _base_rate(kv[1]) or 0),
@@ -876,6 +882,12 @@ def _derive_meal_plan_supplements(
                 if amount is None or amount <= base_amount:
                     continue
                 delta = round(amount - base_amount, 2)
+                # Per-room contracts: the delta is per ROOM and can differ by
+                # occupancy (Family RO 500/500 -> BB 590/620). One row per
+                # distinct delta, keyed by adult count; never "per adult".
+                room_deltas = (
+                    _occupancy_deltas(base_rate_obj, rate) if per_room else None
+                )
                 canonical_name = m_code_to_canonical.get(meal_code) or meal_code
                 # Adult row: Standard + Per Person Per Night
                 # Per the user rule, Standard/Count/Index column stays blank;
@@ -929,6 +941,27 @@ def _derive_meal_plan_supplements(
                 # Children 6-12.99 charged 50%") still produce their
                 # own Child rows because the LLM emits them directly
                 # in build_supplement_rows.
+                if room_deltas:
+                    groups = _group_by_delta(room_deltas)
+                    for (lo, hi), d in groups:
+                        row = dict(base_row)
+                        row.update({
+                            "Charge Type": "Per Room Per Night",
+                            "Traveler Type": "Traveller",
+                            "FareType Name": "Per Traveller",
+                            "Supplier Cost": d,
+                            "Customer Price": d,
+                        })
+                        if len(groups) > 1:
+                            row["Min Adult"], row["Max Adult"] = lo, hi
+                            row["Description"] = (
+                                f"{row['Description']}, per room, "
+                                f"{lo if lo == hi else f'{lo}-{hi}'} adult(s)"
+                            )
+                        else:
+                            row["Description"] = f"{row['Description']}, per room"
+                        out.append(row)
+                    continue
                 adult_row = dict(base_row)
                 adult_row.update({
                     "Traveler Type": "Adult",
@@ -938,6 +971,30 @@ def _derive_meal_plan_supplements(
                 })
                 out.append(adult_row)
     return out
+
+
+def _occupancy_deltas(base: Rate, upgraded: Rate) -> Dict[int, float]:
+    """{adults: per-room delta} for every occupancy priced in both rates."""
+    out: Dict[int, float] = {}
+    for n, fld in ((1, "sgl"), (2, "dbl"), (3, "tpl"), (4, "qdp")):
+        b, u = getattr(base, fld), getattr(upgraded, fld)
+        if b is not None and u is not None and u > b:
+            out[n] = round(u - b, 2)
+    return out
+
+
+def _group_by_delta(deltas: Dict[int, float]) -> List[Tuple[Tuple[int, int], float]]:
+    """Merge consecutive occupancies with the same delta: {1:40, 2:40} ->
+    [((1, 2), 40)]; {3:90, 4:120} -> [((3, 3), 90), ((4, 4), 120)]."""
+    groups: List[Tuple[Tuple[int, int], float]] = []
+    for n in sorted(deltas):
+        d = deltas[n]
+        if groups and groups[-1][1] == d and groups[-1][0][1] == n - 1:
+            (lo, _), _ = groups[-1]
+            groups[-1] = ((lo, n), d)
+        else:
+            groups.append(((n, n), d))
+    return groups
 
 
 def map_extraction(extraction: ContractExtraction) -> MappingResult:

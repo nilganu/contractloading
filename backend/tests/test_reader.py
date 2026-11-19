@@ -202,3 +202,25 @@ def test_eval_scoring() -> None:
     s = score(_extraction(130), _extraction(120.5))
     assert s["rate_cells"] == 0.0
     assert s["wrong_cells_sample"][0]["got"] == 130
+
+
+def test_hidden_column_group_and_split_sheet_keep_hidden(tmp_path) -> None:
+    from app.extraction.splitters import split_excel_sheet
+
+    p = tmp_path / "g.xlsx"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "H1"
+    for c in "ABCDEFGH":
+        ws[f"{c}1"] = f"v{c}"
+    ws["A2"] = "old row"
+    ws.row_dimensions[2].hidden = True
+    ws["B3"] = "x"
+    ws["B3"].comment = Comment("see note", "s")
+    ws.column_dimensions.group("E", "G", hidden=True)
+    wb.save(p)
+    for path in (p, split_excel_sheet(p, "H1", tmp_path / "s.xlsx")):
+        t = read_excel(path).text
+        assert "vD" in t and "vH" in t
+        assert "vE" not in t and "vF" not in t and "vG" not in t
+        assert "old row" not in t and 'B3 comment: "see note"' in t

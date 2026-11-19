@@ -161,10 +161,10 @@ export default function ReviewPage() {
             onChange={(e) => setExportMode(e.target.value)}
             title="Export mode"
           >
-            <option value="moonstride_auto">Moonstride (auto-detect format)</option>
-            <option value="moonstride_ppn">Moonstride · Per Person Per Night</option>
-            <option value="moonstride_prn_ac">Moonstride · Per Room (Adult / Child)</option>
-            <option value="moonstride_prn_pax">Moonstride · Per Room (Pax count)</option>
+            <option value="moonstride_auto">moonstride (auto-detect format)</option>
+            <option value="moonstride_ppn">moonstride · Per Person Per Night</option>
+            <option value="moonstride_prn_ac">moonstride · Per Room (Adult / Child)</option>
+            <option value="moonstride_prn_pax">moonstride · Per Room (Pax count)</option>
             <option value="dynamic_export">Dynamic export (internal)</option>
             <option value="strict_template">Strict template (internal)</option>
             <option value="dynamic_review">Dynamic review (internal cols)</option>
@@ -184,7 +184,7 @@ export default function ReviewPage() {
             title={
               blockingErrors > 0
                 ? "Fix blocking validation errors before exporting"
-                : "Export Moonstride workbook"
+                : "Export moonstride workbook"
             }
           >
             Export XLSX

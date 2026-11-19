@@ -176,12 +176,53 @@ def _fmt_value(value, number_format: str) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
+def _hidden_columns(ws) -> Set[str]:
+    """Letters of hidden columns. A dimension can cover a range of columns
+    (``<col min=5 max=7 hidden=1>`` is stored once, under 'E')."""
+    from openpyxl.utils import column_index_from_string, get_column_letter
+
+    out: Set[str] = set()
+    for key, d in ws.column_dimensions.items():
+        if not d.hidden:
+            continue
+        lo = d.min or column_index_from_string(key)
+        hi = max(d.max or lo, lo)
+        out.update(get_column_letter(i) for i in range(lo, hi + 1))
+    return out
+
+
+def _cached_formula_values(path: Path, wb) -> dict:
+    """{(sheet, row, col): cached value} for formula cells only. The
+    data_only copy is opened read-only and streamed once, so a workbook is
+    never held in memory twice."""
+    import openpyxl
+
+    wanted = {
+        ws.title: {(c.row, c.column) for row in ws.iter_rows() for c in row if c.data_type == "f"}
+        for ws in wb.worksheets if ws.sheet_state == "visible"
+    }
+    wanted = {k: v for k, v in wanted.items() if v}
+    if not wanted:
+        return {}
+    out = {}
+    vwb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    try:
+        for title, coords in wanted.items():
+            for r_idx, row in enumerate(vwb[title].iter_rows(values_only=True), start=1):
+                for c_idx, v in enumerate(row, start=1):
+                    if (r_idx, c_idx) in coords:
+                        out[(title, r_idx, c_idx)] = v
+    finally:
+        vwb.close()
+    return out
+
+
 def read_excel(path: Path) -> SourceView:
     import openpyxl
     from openpyxl.utils import get_column_letter
 
     wb = openpyxl.load_workbook(path)
-    values_wb = openpyxl.load_workbook(path, data_only=True)
+    cached_values = _cached_formula_values(path, wb)
     parts: List[str] = [
         f"# Workbook {path.name}",
         "Cells are listed per row as ADDRESS=value. Empty cells, hidden "
@@ -196,10 +237,7 @@ def read_excel(path: Path) -> SourceView:
         if ws.sheet_state != "visible":
             warnings.append(f"Hidden sheet '{ws.title}' not read.")
             continue
-        vws = values_wb[ws.title]
-        hidden_cols = {
-            k for k, d in ws.column_dimensions.items() if d.hidden
-        }
+        hidden_cols = _hidden_columns(ws)
         hidden_rows = {k for k, d in ws.row_dimensions.items() if d.hidden}
         parts.append(f"\n## Sheet: {ws.title} ({ws.dimensions})")
         merges = [str(r) for r in ws.merged_cells.ranges]
@@ -224,7 +262,7 @@ def read_excel(path: Path) -> SourceView:
                     continue
                 value = cell.value
                 if cell.data_type == "f":
-                    cached = vws.cell(row=r, column=cell.column).value
+                    cached = cached_values.get((ws.title, r, cell.column))
                     value = cached if cached is not None else value
                 if value is None or (isinstance(value, str) and not value.strip()):
                     continue
