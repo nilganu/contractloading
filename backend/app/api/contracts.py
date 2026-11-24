@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -69,7 +70,13 @@ async def extract_and_export(
         # multi-hotel decomposition; multi-hotel files get one focused
         # sub-file extraction per hotel, in parallel.
         try:
-            extraction = orchestrate_extraction(tmp_in, options={})
+            # Extraction takes minutes of blocking work (OpenAI calls, file
+            # parsing). Run it in a worker thread: on the event loop it would
+            # freeze the whole server, health checks would time out and the
+            # host (Render) would restart it mid-request.
+            extraction = await run_in_threadpool(
+                orchestrate_extraction, tmp_in, options={}
+            )
         except ValueError as e:
             raise HTTPException(400, str(e))
         except RuntimeError as e:

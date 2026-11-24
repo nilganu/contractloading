@@ -7,6 +7,35 @@ type Status = "idle" | "working" | "done" | "error";
 const API_BASE = (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
   || "/api";
 
+const TIMEOUT_MS = 15 * 60 * 1000;
+
+// Short, readable message for a failed response. The backend sends JSON
+// {"detail": "..."}; a proxy in front of it (Render) sends a full HTML page.
+async function errorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+  try {
+    const detail = JSON.parse(text)?.detail;
+    if (detail) return typeof detail === "string" ? detail : JSON.stringify(detail);
+  } catch {
+    /* not JSON */
+  }
+  if (res.status === 502 || res.status === 503 || res.status === 504) {
+    return "The server stopped while reading this contract. Please try again in a minute.";
+  }
+  const plain = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return `Error ${res.status}: ${plain.slice(0, 200) || res.statusText}`;
+}
+
+function friendlyError(err: unknown): string {
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return "This took longer than 15 minutes, so it was stopped. Please try again.";
+  }
+  if (err instanceof TypeError) {
+    return "Could not reach the server, or the connection dropped. Please try again in a minute.";
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export default function SimpleUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
@@ -21,14 +50,18 @@ export default function SimpleUpload() {
     const fd = new FormData();
     fd.append("file", file);
 
+    // Large multi-hotel contracts can take several minutes; past this the
+    // request is treated as lost so the page never spins forever.
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       const res = await fetch(`${API_BASE}/contracts/extract-and-export`, {
         method: "POST",
         body: fd,
+        signal: controller.signal,
       });
       if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`${res.status} ${res.statusText}: ${body}`);
+        throw new Error(await errorMessage(res));
       }
       const blob = await res.blob();
       const cd = res.headers.get("content-disposition") || "";
@@ -46,8 +79,10 @@ export default function SimpleUpload() {
       URL.revokeObjectURL(url);
       setStatus("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
       setStatus("error");
+    } finally {
+      window.clearTimeout(timer);
     }
   }
 
